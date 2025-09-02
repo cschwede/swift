@@ -92,6 +92,10 @@ if USE_EVENTLET:
     from eventlet.support.greenlets import GreenletExit
     from eventlet.wsgi import ChunkReadError
 
+    from swift.common.utils import Watchdog
+    from swift.common.wsgi import run_wsgi
+    wsgi_input_class = wsgi.Input
+
     class Timeout(_Timeout):
         def __init__(self, *args, **kwargs):
             # Timeout might be used with a socket keyword, which does not
@@ -140,6 +144,11 @@ else:
     from threading import Event, Semaphore
 
     LightQueue = Queue
+
+    from swift.common.utils import WatchdogNoOp as Watchdog
+    from swift.common.wsgi_gunicorn import run_wsgi
+    from gunicorn.http.body import Body
+    wsgi_input_class = Body
 
     try:
         from greenlet import GreenletExit
@@ -469,4 +478,6 @@ __all__ = [
     'shutdown_safe',
     'spawn_n',
     'ChunkReadError',
+    'Watchdog',
+    'run_wsgi',
 ]
