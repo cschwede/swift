@@ -941,11 +941,11 @@ class ObjectUpdater(Daemon):
         # Assume an error until we hear otherwise
         status = 500
         try:
-            with ConnectionTimeout(self.conn_timeout):
-                conn = http_connect(
-                    node['replication_ip'], node['replication_port'],
-                    node['device'], part, op, path, headers_out)
-            with Timeout(self.node_timeout):
+            conn = http_connect(
+                node['replication_ip'], node['replication_port'],
+                node['device'], part, op, path, headers_out,
+                timeout=self.conn_timeout)
+            with Timeout(self.node_timeout, socket=conn.sock):
                 resp = conn.getresponse()
                 resp.read()
             status = resp.status

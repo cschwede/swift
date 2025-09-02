@@ -42,7 +42,6 @@ from swift.common.utils import get_logger, hash_path, public, \
 from swift.common.constraints import valid_timestamp, check_utf8, \
     check_drive, AUTO_CREATE_ACCOUNT_PREFIX
 from swift.common.bufferedhttp import http_connect
-from swift.common.exceptions import ConnectionTimeout
 from swift.common.http import HTTP_NO_CONTENT, HTTP_NOT_FOUND, is_success
 from swift.common.middleware import listing_formats
 from swift.common.storage_policy import POLICIES
@@ -262,24 +261,24 @@ class ContainerController(BaseStorageServer):
                     'yes':
                 account_headers['x-account-override-deleted'] = 'yes'
             try:
-                with ConnectionTimeout(self.conn_timeout):
-                    conn = http_connect(
-                        account_ip, account_port, account_device,
-                        account_partition, 'PUT', new_path, account_headers)
-                with Timeout(self.node_timeout):
+                conn = http_connect(
+                    account_ip, account_port, account_device,
+                    account_partition, 'PUT', new_path, account_headers,
+                    timeout=self.conn_timeout)
+                with Timeout(self.node_timeout, socket=conn.sock):
                     account_response = conn.getresponse()
                     account_response.read()
-                    if account_response.status == HTTP_NOT_FOUND:
-                        account_404s += 1
-                    elif not is_success(account_response.status):
-                        self.logger.error(
-                            'ERROR Account update failed '
-                            'with %(ip)s:%(port)s/%(device)s (will retry '
-                            'later): Response %(status)s %(reason)s',
-                            {'ip': account_ip, 'port': account_port,
-                             'device': account_device,
-                             'status': account_response.status,
-                             'reason': account_response.reason})
+                if account_response.status == HTTP_NOT_FOUND:
+                    account_404s += 1
+                elif not is_success(account_response.status):
+                    self.logger.error(
+                        'ERROR Account update failed '
+                        'with %(ip)s:%(port)s/%(device)s (will retry '
+                        'later): Response %(status)s %(reason)s',
+                        {'ip': account_ip, 'port': account_port,
+                         'device': account_device,
+                         'status': account_response.status,
+                         'reason': account_response.reason})
             except (Exception, Timeout):
                 self.logger.exception(
                     'ERROR account update failed with '

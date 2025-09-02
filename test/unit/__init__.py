@@ -600,7 +600,7 @@ def readuntil2crlfs(fd):
 
 def readlength(fd, size, timeout=1.0):
     buf = b''
-    with eventlet.Timeout(timeout):
+    with utils.Timeout(timeout):
         while len(buf) < size:
             chunk = fd.read(min(64, size - len(buf)))
             buf += chunk
@@ -784,7 +784,7 @@ class FakeStatus(object):
         # connect exception
         if inspect.isclass(status) and issubclass(status, Exception):
             raise status('FakeStatus Error')
-        if isinstance(status, (Exception, eventlet.Timeout)):
+        if isinstance(status, (Exception, utils.Timeout)):
             raise status
         if isinstance(status, tuple):
             self.expect_status = list(status[:-1])
@@ -826,7 +826,7 @@ class FakeStatus(object):
         if self.expect_status and self.explicit_expect_list:
             raise Exception('Test did not consume all fake '
                             'expect status: %r' % (self.expect_status,))
-        if isinstance(self.status, (Exception, eventlet.Timeout)):
+        if isinstance(self.status, (Exception, utils.Timeout)):
             raise self.status
         return self.status
 
@@ -835,7 +835,7 @@ class FakeStatus(object):
         if expect_sleep is not None:
             eventlet.sleep(expect_sleep)
         expect_status = self.expect_status.pop(0)
-        if isinstance(expect_status, (Exception, eventlet.Timeout)):
+        if isinstance(expect_status, (Exception, utils.Timeout)):
             raise expect_status
         return expect_status
 
@@ -870,6 +870,17 @@ class SlowBody(object):
         return other + self.body
 
 
+class FakeSocket(object):
+    def __init__(self):
+        self._timeout = None
+
+    def settimeout(self, t):
+        self._timeout = t
+
+    def gettimeout(self):
+        return self._timeout
+
+
 def fake_http_connect(*code_iter, **kwargs):
 
     class FakeConn(object):
@@ -888,6 +899,7 @@ def fake_http_connect(*code_iter, **kwargs):
             self.port = '1234'
             self.sent = 0
             self.received = 0
+            self.sock = FakeSocket()
             self.etag = etag
             self.body = body
             self._headers = headers or {}
@@ -922,11 +934,11 @@ def fake_http_connect(*code_iter, **kwargs):
         def getresponse(self):
             exc = kwargs.get('raise_exc')
             if exc:
-                if isinstance(exc, (Exception, eventlet.Timeout)):
+                if isinstance(exc, (Exception, utils.Timeout)):
                     raise exc
                 raise Exception('test')
             if kwargs.get('raise_timeout_exc'):
-                raise eventlet.Timeout()
+                raise utils.Timeout()
             self.status = self._status.get_response_status()
             return self
 
@@ -1049,7 +1061,10 @@ def fake_http_connect(*code_iter, **kwargs):
 
     def connect(*args, **ckwargs):
         if kwargs.get('slow_connect', False):
-            eventlet.sleep(0.1)
+            # eventlet.sleep(0.1) has been used before, but this would never
+            # raise a ConnectionTimeout anymore because the context manager is
+            # no longer used. Just raise it directly
+            raise exceptions.ConnectionTimeout()
         if 'give_content_type' in kwargs:
             if len(args) >= 7 and 'Content-Type' in args[6]:
                 kwargs['give_content_type'](args[6]['Content-Type'])
@@ -1101,7 +1116,8 @@ def mocked_http_conn(*args, **kwargs):
     requests = []
     responses = []
 
-    def capture_requests(ip, port, method, path, headers, qs, ssl):
+    def capture_requests(ip, port, method, path, headers, qs, ssl,
+                         timeout=None):
         req = {
             'ip': ip,
             'port': port,
@@ -1110,6 +1126,7 @@ def mocked_http_conn(*args, **kwargs):
             'headers': headers,
             'qs': qs,
             'ssl': ssl,
+            'timeout': timeout,
         }
         requests.append(req)
     kwargs.setdefault('give_connect', capture_requests)
@@ -1513,12 +1530,14 @@ class FakeHTTPResponse(object):
 def attach_fake_replication_rpc(rpc, replicate_hook=None, errors=None):
     class FakeReplConnection(object):
 
-        def __init__(self, node, partition, hash_, logger):
+        def __init__(self, node, partition, hash_, logger, timeout=None):
             self.logger = logger
             self.node = node
             self.partition = partition
             self.path = '/%s/%s/%s' % (node['device'], partition, hash_)
             self.host = node['replication_ip']
+            self.timeout = timeout
+            self.sock = FakeSocket()
 
         def replicate(self, op, *sync_args):
             print('REPLICATE: %s, %s, %r' % (self.path, op, sync_args))

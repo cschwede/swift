@@ -57,6 +57,7 @@ def mock_http_connect(status):
             self.path = args[5]
             self.with_exc = False
             self.headers = kwargs.get('headers', {})
+            self.sock = None
 
         def getresponse(self):
             if self.with_exc:
@@ -1998,7 +1999,8 @@ class TestObjectReplicator(BaseUnitTestCase):
             for node in job['nodes']:
                 reqs.append(mock.call(node['ip'], node['port'], node['device'],
                                       job['partition'], 'REPLICATE', '',
-                                      headers=self.headers))
+                                      headers=self.headers,
+                                      timeout=self.replicator.http_timeout))
             if job['partition'] == '0':
                 self.assertEqual(self.replicator.suffix_hash, 0)
             mock_http.assert_has_calls(reqs, any_order=True)
@@ -2120,7 +2122,8 @@ class TestObjectReplicator(BaseUnitTestCase):
             reqs.append(mock.call(node['replication_ip'],
                                   node['replication_port'], node['device'],
                                   repl_job['partition'], 'REPLICATE',
-                                  '', headers=self.headers))
+                                  '', headers=self.headers,
+                                  timeout=self.replicator.http_timeout))
         mock_http.assert_has_calls(reqs, any_order=True)
 
     @mock.patch('swift.obj.replicator.tpool.execute')

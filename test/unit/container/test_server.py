@@ -5987,7 +5987,8 @@ class TestContainerController(BaseUnitTestCase):
         http_connect_args = []
 
         def fake_http_connect(ipaddr, port, device, partition, method, path,
-                              headers=None, query_string=None, ssl=False):
+                              headers=None, query_string=None, ssl=False,
+                              timeout=None):
 
             class SuccessfulFakeConn(object):
                 @property

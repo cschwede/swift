@@ -21,6 +21,8 @@ rather than importing directly from eventlet.
 
 import importlib.util
 import os
+import time
+from socket import timeout as socket_timeout
 
 # Used when reading config values
 FALSE_VALUES = {'false', '0', 'no', 'off', 'f', 'n'}
@@ -49,7 +51,7 @@ import eventlet.queue
 import eventlet.semaphore
 import eventlet.wsgi
 
-from eventlet import GreenPile, GreenPool, Timeout
+from eventlet import GreenPile, GreenPool
 from eventlet import greenio, greenpool, hubs, patcher, queue, tpool, wsgi
 from eventlet import debug, listen, sleep, spawn, timeout, websocket
 from eventlet import greenthread
@@ -76,6 +78,72 @@ monkey_patch = eventlet.patcher.monkey_patch
 shutdown_safe = eventlet.greenio.shutdown_safe
 spawn_n = eventlet.spawn_n
 ChunkReadError = eventlet.wsgi.ChunkReadError
+
+
+if USE_EVENTLET:
+    from eventlet import Timeout as _Timeout
+
+    class Timeout(_Timeout):
+        def __init__(self, *args, **kwargs):
+            # Timeout might be used with a socket keyword, which does not
+            # exist in eventlet. Remove this from the list of keywords
+            new_kwargs = {k: v for k, v in kwargs.items() if k != "socket"}
+            super(Timeout, self).__init__(*args, **new_kwargs)
+
+        def check_time(self):
+            # Only needed without eventlet
+            pass
+
+else:
+    class Timeout(BaseException):
+        def __init__(self, seconds=None, socket=None, exception=None):
+            # exception is unused, kept to be compatible with eventlet and
+            # test/unit/obj/test_ssync.py::TestSsyncECReconstructorSyncJob
+            self.seconds = seconds
+            self.socket = socket
+            self.old_timeout = None
+            self.deadline = None
+
+        def __enter__(self):
+            if self.seconds is not None:
+                if self.seconds > 0:
+                    self.deadline = time.monotonic() + self.seconds
+            if self.seconds is not None and self.socket is not None:
+                self.old_timeout = self.socket.gettimeout()
+                self.socket.settimeout(self.seconds)
+            return self
+
+        def check_time(self):
+            if self.deadline is not None and time.monotonic() > self.deadline:
+                raise self
+
+        def restore_timeout(self):
+            if self.old_timeout is not None and self.socket is not None:
+                try:
+                    self.socket.settimeout(self.old_timeout)
+                except OSError:
+                    pass
+                self.old_timeout = None
+
+        def __exit__(self, exc_type, exc_value, exc_traceback):
+            self.restore_timeout()
+            if exc_type is socket_timeout:
+                raise self
+            return False
+
+        def __str__(self):
+            if self.seconds is not None:
+                if self.seconds == 1:
+                    suffix = ''
+                else:
+                    suffix = 's'
+                return '%s second%s' % (self.seconds, suffix)
+            return ''
+
+        # Only used in tests, but just in case restore timeouts
+        def cancel(self):
+            self.restore_timeout()
+
 
 # flake8 raises a F401 without this
 __all__ = [

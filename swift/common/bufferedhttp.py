@@ -219,7 +219,7 @@ class BufferedHTTPConnection(HTTPConnection):
 
 
 def http_connect(ipaddr, port, device, partition, method, path,
-                 headers=None, query_string=None, ssl=False):
+                 headers=None, query_string=None, ssl=False, timeout=None):
     """
     Helper function to create an HTTPConnection object. If ssl is set True,
     HTTPSConnection will be used. However, if ssl=False, BufferedHTTPConnection
@@ -234,6 +234,7 @@ def http_connect(ipaddr, port, device, partition, method, path,
     :param headers: dictionary of headers
     :param query_string: request query string
     :param ssl: set True if SSL should be used (default: False)
+    :param timeout: timeout in seconds used by http.client (default: None)
     :returns: HTTPConnection object
     """
     if isinstance(path, str):
@@ -246,11 +247,11 @@ def http_connect(ipaddr, port, device, partition, method, path,
         partition = str(partition).encode('ascii')
     path = quote(b'/' + device + b'/' + partition + path)
     return http_connect_raw(
-        ipaddr, port, method, path, headers, query_string, ssl)
+        ipaddr, port, method, path, headers, query_string, ssl, timeout)
 
 
 def http_connect_raw(ipaddr, port, method, path, headers=None,
-                     query_string=None, ssl=False):
+                     query_string=None, ssl=False, timeout=None):
     """
     Helper function to create an HTTPConnection object. If ssl is set True,
     HTTPSConnection will be used. However, if ssl=False, BufferedHTTPConnection
@@ -263,14 +264,16 @@ def http_connect_raw(ipaddr, port, method, path, headers=None,
     :param headers: dictionary of headers
     :param query_string: request query string
     :param ssl: set True if SSL should be used (default: False)
+    :param timeout: timeout in seconds used by http.client (default: None)
     :returns: HTTPConnection object
     """
     if not port:
         port = 443 if ssl else 80
     if ssl:
-        conn = HTTPSConnection('%s:%s' % (ipaddr, port))
+        conn = HTTPSConnection('%s:%s' % (ipaddr, port), timeout=timeout)
     else:
-        conn = BufferedHTTPConnection('%s:%s' % (ipaddr, port))
+        conn = BufferedHTTPConnection('%s:%s' % (ipaddr, port),
+                                      timeout=timeout)
     if query_string:
         # Round trip to ensure proper quoting
         query_string = urlencode(

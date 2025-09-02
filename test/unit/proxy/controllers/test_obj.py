@@ -54,7 +54,7 @@ from test.unit import (
     DEFAULT_TEST_EC_TYPE, encode_frag_archive_bodies, make_ec_object_stub,
     fake_ec_node_response, StubResponse, mocked_http_conn,
     quiet_eventlet_exceptions, FakeSource, FakeMemcache, node_error_count,
-    node_error_counts, BaseUnitTestCase)
+    node_error_counts, BaseUnitTestCase, FakeSocket)
 
 
 def unchunk_body(chunked_body):
@@ -3209,6 +3209,7 @@ def capture_http_requests(get_response):
             self.resp = None
             self.path = "/"
             self.closed = False
+            self.sock = FakeSocket()
 
         def getresponse(self):
             self.resp = get_response(self.req)
@@ -3240,7 +3241,8 @@ def capture_http_requests(get_response):
         def __iter__(self):
             return iter(self.connections)
 
-        def __call__(self, ip, port, method, path, headers, qs, ssl):
+        def __call__(self, ip, port, method, path, headers, qs, ssl,
+                     timeout=None):
             req = {
                 'ip': ip,
                 'port': port,
@@ -3249,6 +3251,7 @@ def capture_http_requests(get_response):
                 'headers': headers,
                 'qs': qs,
                 'ssl': ssl,
+                'timeout': timeout,
             }
             conn = FakeConn(req)
             self.connections.append(conn)

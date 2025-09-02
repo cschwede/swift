@@ -16,7 +16,6 @@ import shutil
 import unittest
 from contextlib import contextmanager
 
-from swift.common.concurrency import eventlet
 import os
 import logging
 import errno
@@ -31,7 +30,7 @@ from unittest.mock import patch, call
 
 from swift.common.db_replicator import BrokerAnnotatedLogger
 from swift.container.backend import DATADIR
-from swift.common import db_replicator
+from swift.common import db_replicator, utils
 from swift.common.utils import (hash_path, storage_directory, Timestamp, quote,
                                 mkdirs, listdir)
 from swift.common.exceptions import DriveNotMounted
@@ -39,7 +38,7 @@ from swift.common.swob import HTTPException
 
 from test import unit
 from test.debug_logger import debug_logger
-from test.unit import attach_fake_replication_rpc, BaseUnitTestCase
+from test.unit import attach_fake_replication_rpc, BaseUnitTestCase, FakeSocket
 from test.unit.common.test_db import ExampleBroker
 
 
@@ -161,6 +160,7 @@ class ReplHttp(object):
             response = response.encode('ascii')
         self.response = response
         self.set_status = set_status
+        self.sock = FakeSocket()
     replicated = False
     host = 'localhost'
     node = {
@@ -873,7 +873,7 @@ class TestDBReplicator(unittest.TestCase):
 
             @property
             def status(self):
-                if isinstance(self._status, (Exception, eventlet.Timeout)):
+                if isinstance(self._status, (Exception, utils.Timeout)):
                     raise self._status
                 return self._status
 
@@ -896,7 +896,7 @@ class TestDBReplicator(unittest.TestCase):
         with mock.patch(replicate) as fake_replicate:
             fake_replicate.side_effect = [
                 FakeResponse(Exception('ugh'), None),
-                FakeResponse(eventlet.Timeout(), None),
+                FakeResponse(utils.Timeout(), None),
                 FakeResponse(200, rinfo)]
             with mock.patch.object(replicator, 'delete_db') as mock_delete:
                 res = replicator._replicate_object('0', db_path, 'node_id')
@@ -1999,7 +1999,8 @@ class TestDBReplicator(unittest.TestCase):
         expected_hsh = os.path.basename(db_file).split('.', 1)[0]
         expected_hsh = expected_hsh.split('_', 1)[0]
         db_replicator.ReplConnection.assert_has_calls([
-            mock.call(node, partition, expected_hsh, replicator.logger)])
+            mock.call(node, partition, expected_hsh, replicator.logger,
+                      timeout=replicator.node_timeout)])
 
     @unit.with_tempdir
     def test_reclaim_tmp_files(self, tmpdir):

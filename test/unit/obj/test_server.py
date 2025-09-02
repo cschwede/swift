@@ -2619,7 +2619,10 @@ class TestObjectController(BaseUnitTestCase):
 
     def test_PUT_client_timeout(self):
         class FakeTimeout(BaseException):
-            def __enter__(self):
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def __enter__(self, *args):
                 raise self
 
             def __exit__(self, typ, value, tb):
@@ -6211,7 +6214,7 @@ class TestObjectController(BaseUnitTestCase):
         self._stage_tmp_dir(policy)
         given_args = []
 
-        def fake_http_connect(*args):
+        def fake_http_connect(*args, **kwargs):
             given_args.extend(args)
             raise Exception('test')
 
@@ -6245,7 +6248,8 @@ class TestObjectController(BaseUnitTestCase):
         http_connect_args = []
 
         def fake_http_connect(ipaddr, port, device, partition, method, path,
-                              headers=None, query_string=None, ssl=False):
+                              headers=None, query_string=None, ssl=False,
+                              timeout=None):
 
             class SuccessfulFakeConn(object):
 
@@ -6366,7 +6370,8 @@ class TestObjectController(BaseUnitTestCase):
         http_connect_args = []
 
         def fake_http_connect(ipaddr, port, device, partition, method, path,
-                              headers=None, query_string=None, ssl=False):
+                              headers=None, query_string=None, ssl=False,
+                              timeout=None):
 
             class SuccessfulFakeConn(object):
 
@@ -6627,6 +6632,7 @@ class TestObjectController(BaseUnitTestCase):
 
                 def __init__(self, status):
                     self.status = status
+                    self.sock = None
 
                 def getresponse(self):
                     return self
@@ -6634,7 +6640,7 @@ class TestObjectController(BaseUnitTestCase):
                 def read(self):
                     return b''
 
-            return lambda *args: FakeConn(status)
+            return lambda *args, **kwargs: FakeConn(status)
 
         orig_http_connect = object_server.http_connect
         try:
@@ -9751,6 +9757,9 @@ class TestObjectController(BaseUnitTestCase):
             pass
 
         class FakeTimeout(BaseException):
+            def __init__(self, *args, **kwargs):
+                pass
+
             def __enter__(self):
                 in_a_timeout[0] = True
 

@@ -152,11 +152,11 @@ class ReplConnection(BufferedHTTPConnection):
     Helper to simplify REPLICATEing to a remote server.
     """
 
-    def __init__(self, node, partition, hash_, logger):
+    def __init__(self, node, partition, hash_, logger, timeout=None):
         self.logger = logger
         self.node = node
         host = "%s:%s" % (node['replication_ip'], node['replication_port'])
-        BufferedHTTPConnection.__init__(self, host)
+        BufferedHTTPConnection.__init__(self, host, timeout=timeout)
         self.path = '/%s/%s/%s' % (node['device'], partition, hash_)
 
     def replicate(self, *args):
@@ -406,13 +406,16 @@ class Replicator(Daemon):
                 if not self._rsync_file(broker, remote_file, whole_file=False,
                                         different_region=different_region):
                     return False
-        with Timeout(replicate_timeout or self.node_timeout):
+        http.timeout = replicate_timeout or self.node_timeout
+        with Timeout(replicate_timeout or self.node_timeout,
+                     socket=http.sock):
             response = http.replicate(replicate_method, local_id,
                                       os.path.basename(broker.db_file))
         return response and 200 <= response.status < 300
 
     def _send_replicate_request(self, http, *repl_args):
-        with Timeout(self.node_timeout):
+        http.timeout = self.node_timeout
+        with Timeout(self.node_timeout, socket=http.sock):
             response = http.replicate(*repl_args)
         if not response or not is_success(response.status):
             if response:
@@ -469,7 +472,8 @@ class Replicator(Daemon):
             self.stats['diff_capped'] += 1
             self.logger.increment('diff_caps')
         else:
-            with Timeout(self.node_timeout):
+            http.timeout = self.node_timeout
+            with Timeout(self.node_timeout, socket=http.sock):
                 response = http.replicate('merge_syncs', sync_table)
             if response and 200 <= response.status < 300:
                 broker.merge_syncs([{'remote_id': remote_id,
@@ -513,7 +517,8 @@ class Replicator(Daemon):
         :returns: ReplConnection object
         """
         hsh, other, ext = parse_db_filename(db_file)
-        return ReplConnection(node, partition, hsh, self.logger)
+        return ReplConnection(node, partition, hsh, self.logger,
+                              timeout=self.node_timeout)
 
     def _gather_sync_args(self, info):
         """
@@ -541,7 +546,8 @@ class Replicator(Daemon):
         """
         http = self._http_connect(node, partition, broker.db_file)
         sync_args = self._gather_sync_args(info)
-        with Timeout(self.node_timeout):
+        http.timeout = self.node_timeout
+        with Timeout(self.node_timeout, socket=http.sock):
             response = http.replicate('sync', *sync_args)
         if not response:
             return False

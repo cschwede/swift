@@ -1480,7 +1480,8 @@ class TestObjectUpdater(BaseUnitTestCase):
 
             self.assertEqual(len(fake_status_codes), len(request_log))
             for request_args, request_kwargs in request_log:
-                ip, part, method, path, headers, qs, ssl = request_args
+                ip, part, method, path, headers, qs, ssl, timeout = \
+                    request_args
                 self.assertEqual(method, op)
                 self.assertEqual(headers['X-Backend-Storage-Policy-Index'],
                                  str(int(policy)))
@@ -1543,7 +1544,8 @@ class TestObjectUpdater(BaseUnitTestCase):
                 daemon._process_device_in_child(self.sda1, 'sda1')
             self.assertEqual(len(fake_status_codes), len(request_log))
             for request_args, request_kwargs in request_log:
-                ip, part, method, path, headers, qs, ssl = request_args
+                ip, part, method, path, headers, qs, ssl, timeout = \
+                    request_args
                 self.assertEqual(method, 'PUT')
                 self.assertDictEqual(expected, headers)
             self.assertEqual(
