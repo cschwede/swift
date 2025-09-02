@@ -61,18 +61,9 @@ from eventlet import greenio, greenpool, hubs, patcher, queue, wsgi
 from eventlet import debug, listen, timeout, websocket
 from eventlet import greenthread
 
-from eventlet.event import Event
-from eventlet.green import socket, ssl, subprocess
-from eventlet.green import os as green_os
-from eventlet.green import threading as green_threading
-from eventlet.green.http import client as green_http_client
 from eventlet.green.http.client import CONTINUE, HTTPConnection, \
     HTTPResponse, HTTPSConnection, ImproperConnectionState, _UNKNOWN
-from eventlet.green.urllib import request as urllib_request
 from eventlet.greenthread import getcurrent, spawn as greenthread_spawn
-from eventlet.queue import Empty, LightQueue, Queue
-from eventlet.semaphore import Semaphore
-from eventlet.support.greenlets import GreenletExit
 import eventlet.green.profile as eprofile
 
 hub_exceptions = eventlet.debug.hub_exceptions
@@ -84,11 +75,21 @@ ChunkReadError = eventlet.wsgi.ChunkReadError
 
 if USE_EVENTLET:
     from eventlet import Timeout as _Timeout
+    from eventlet import sleep
     from eventlet import tpool
     from eventlet import GreenPool as SwiftPool
     from eventlet import GreenPile as SwiftPile
+    from eventlet.event import Event
+    from eventlet.green import socket, ssl, subprocess
+    from eventlet.green import os as green_os
+    from eventlet.green import threading as green_threading
+    from eventlet.green.http import client as green_http_client
+    from eventlet.green.urllib import request as urllib_request
     from eventlet.hubs import trampoline
     from eventlet.pools import Pool
+    from eventlet.queue import Empty, LightQueue, Queue
+    from eventlet.semaphore import Semaphore
+    from eventlet.support.greenlets import GreenletExit
 
     class Timeout(_Timeout):
         def __init__(self, *args, **kwargs):
@@ -100,8 +101,6 @@ if USE_EVENTLET:
         def check_time(self):
             # Only needed without eventlet
             pass
-
-    from eventlet import sleep
 
     # Helper functions to replace eventlet spawn with a threading equivalent
     class EventletResult(object):
@@ -129,6 +128,24 @@ if USE_EVENTLET:
     spawn_n = eventlet.spawn_n
 
 else:
+    import http.client as green_http_client
+    import os as green_os
+    import socket
+    import ssl
+    import subprocess
+    import threading as green_threading
+    import urllib.request as urllib_request
+    from queue import Empty, Queue
+    from threading import Event, Semaphore
+
+    LightQueue = Queue
+
+    try:
+        from greenlet import GreenletExit
+    except ImportError:
+        class GreenletExit(BaseException):
+            pass
+
     class Timeout(BaseException):
         def __init__(self, seconds=None, socket=None, exception=None):
             # exception is unused, kept to be compatible with eventlet and

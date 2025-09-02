@@ -48,7 +48,8 @@ import itertools
 import stat
 
 from swift.common.concurrency import (
-    eventlet, SwiftPool, sleep, Timeout, Event, socket, USE_EVENTLET
+    eventlet, SwiftPool, sleep, Timeout, Event, socket, USE_EVENTLET,
+    Semaphore, LightQueue, Empty
 )
 try:
     import importlib.metadata
@@ -973,7 +974,7 @@ class GreenthreadSafeIterator(object):
 
     def __init__(self, unsafe_iterable):
         self.unsafe_iter = iter(unsafe_iterable)
-        self.semaphore = eventlet.semaphore.Semaphore(value=1)
+        self.semaphore = Semaphore(value=1)
 
     def __iter__(self):
         return self
@@ -2193,7 +2194,7 @@ class GreenAsyncPile(object):
         else:
             self._pool = SwiftPool(size_or_pool)
             size = size_or_pool
-        self._responses = eventlet.queue.LightQueue(size)
+        self._responses = LightQueue(size)
         self._inflight = 0
         self._pending = 0
 
@@ -2258,7 +2259,7 @@ class GreenAsyncPile(object):
         while True:
             try:
                 rv = self._responses.get_nowait()
-            except eventlet.queue.Empty:
+            except Empty:
                 if self._inflight == 0:
                     raise StopIteration()
                 rv = self._responses.get()
