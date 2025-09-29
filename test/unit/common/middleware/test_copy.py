@@ -17,7 +17,7 @@
 from unittest import mock
 import unittest
 import urllib.parse
-from swift.common.concurrency import eventlet, sleep
+from swift.common.concurrency import sleep, spawn
 
 from swift.common import swob
 from swift.common.middleware import copy
@@ -1469,7 +1469,7 @@ class TestServerSideCopyHeartbeat(unittest.TestCase):
         return status[0], headers[0], body
 
     def test_copy_with_heartbeat_success(self):
-        original_spawn = eventlet.spawn
+        original_spawn = spawn
         self.app.register('GET', '/v1/a/c/o?heartbeat=true', swob.HTTPOk,
                           {'Content-Length': '10'}, b'X' * 10)
         self.app.register('PUT', '/v1/a/c/o2?heartbeat=true',
@@ -1486,7 +1486,7 @@ class TestServerSideCopyHeartbeat(unittest.TestCase):
             environ={'REQUEST_METHOD': 'PUT'},
             headers={'Content-Length': '0', 'X-Copy-From': 'c/o'})
 
-        with mock.patch('eventlet.spawn', mock_spawn):
+        with mock.patch('swift.common.middleware.copy.spawn', mock_spawn):
             status = [None]
             headers_list = [None]
 
@@ -1517,7 +1517,7 @@ class TestServerSideCopyHeartbeat(unittest.TestCase):
                          self.app.calls[1])
 
     def test_copy_with_heartbeat_failure(self):
-        original_spawn = eventlet.spawn
+        original_spawn = spawn
         self.app.register('GET', '/v1/a/c/o?heartbeat=true', swob.HTTPOk,
                           {'Content-Length': '10'}, b'X' * 10)
         self.app.register('PUT', '/v1/a/c/o2?heartbeat=true',
@@ -1536,7 +1536,7 @@ class TestServerSideCopyHeartbeat(unittest.TestCase):
             environ={'REQUEST_METHOD': 'PUT'},
             headers={'Content-Length': '0', 'X-Copy-From': 'c/o'})
 
-        with mock.patch('eventlet.spawn', mock_spawn):
+        with mock.patch('swift.common.middleware.copy.spawn', mock_spawn):
             status = [None]
             headers_list = [None]
 

@@ -21,6 +21,7 @@ rather than importing directly from eventlet.
 
 import importlib.util
 import os
+import threading
 import time
 from socket import timeout as socket_timeout
 
@@ -53,7 +54,7 @@ import eventlet.wsgi
 
 from eventlet import GreenPile, GreenPool
 from eventlet import greenio, greenpool, hubs, patcher, queue, tpool, wsgi
-from eventlet import debug, listen, spawn, timeout, websocket
+from eventlet import debug, listen, timeout, websocket
 from eventlet import greenthread
 
 from eventlet.event import Event
@@ -76,7 +77,6 @@ hub_exceptions = eventlet.debug.hub_exceptions
 hub_prevent_multiple_readers = eventlet.debug.hub_prevent_multiple_readers
 monkey_patch = eventlet.patcher.monkey_patch
 shutdown_safe = eventlet.greenio.shutdown_safe
-spawn_n = eventlet.spawn_n
 ChunkReadError = eventlet.wsgi.ChunkReadError
 
 
@@ -95,6 +95,31 @@ if USE_EVENTLET:
             pass
 
     from eventlet import sleep
+
+    # Helper functions to replace eventlet spawn with a threading equivalent
+    class EventletResult(object):
+        """Wrapper to support timeout arg when using eventlet """
+        def __init__(self, gt):
+            self._gt = gt
+
+        @property
+        def dead(self):
+            return self._gt.dead
+
+        def wait(self, timeout=None):
+            if timeout is not None:
+                with Timeout(timeout):
+                    return self._gt.wait()
+            return self._gt.wait()
+
+        def kill(self):
+            self._gt.kill()
+
+    def spawn(func, *args, **kwargs):
+        return EventletResult(eventlet.spawn(func, *args, **kwargs))
+
+    # spawn_n is not used with a kwarg, just use the unwrapped function
+    spawn_n = eventlet.spawn_n
 
 else:
     class Timeout(BaseException):
@@ -149,6 +174,44 @@ else:
     def sleep(seconds=0):
         if seconds:
             time.sleep(seconds)
+
+    # Helper functions to replace eventlet spawn with a threading equivalent
+    class ThreadResult(object):
+        def __init__(self, func, args, kwargs):
+            self.result = None
+            self.exc = None
+            self.thread = threading.Thread(
+                target=self.run, args=(func, args, kwargs))
+            self.thread.daemon = True
+            self.thread.start()
+
+        def run(self, func, args, kwargs):
+            try:
+                self.result = func(*args, **kwargs)
+            except BaseException as e:
+                self.exc = e
+
+        def wait(self, timeout=None):
+            self.thread.join(timeout=timeout)
+            if self.thread.is_alive():
+                raise Timeout(timeout)
+            if self.exc:
+                raise self.exc
+            return self.result
+
+        @property
+        def dead(self):
+            return not self.thread.is_alive()
+
+        def kill(self):
+            pass
+
+    def spawn(func, *args, **kwargs):
+        return ThreadResult(func, args, kwargs)
+
+    # spawn_n in eventlet is the same as spawn, but without return value or
+    # exceptions. Just using the same spawn without eventlet here
+    spawn_n = spawn
 
 
 # flake8 raises a F401 without this
