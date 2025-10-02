@@ -19,10 +19,12 @@ All modules that need eventlet functionality should import from here
 rather than importing directly from eventlet.
 """
 
+import collections
 import importlib.util
 import os
 import threading
 import time
+from contextlib import contextmanager
 from socket import timeout as socket_timeout
 
 # Used when reading config values
@@ -67,7 +69,6 @@ from eventlet.green.http.client import CONTINUE, HTTPConnection, \
 from eventlet.green.urllib import request as urllib_request
 from eventlet.greenthread import getcurrent, spawn as greenthread_spawn
 from eventlet.hubs import trampoline
-from eventlet.pools import Pool
 from eventlet.queue import Empty, LightQueue, Queue
 from eventlet.semaphore import Semaphore
 from eventlet.support.greenlets import GreenletExit
@@ -82,6 +83,7 @@ ChunkReadError = eventlet.wsgi.ChunkReadError
 
 if USE_EVENTLET:
     from eventlet import Timeout as _Timeout
+    from eventlet.pools import Pool
 
     class Timeout(_Timeout):
         def __init__(self, *args, **kwargs):
@@ -212,6 +214,72 @@ else:
     # spawn_n in eventlet is the same as spawn, but without return value or
     # exceptions. Just using the same spawn without eventlet here
     spawn_n = spawn
+
+    # Class to replaceme eventlet.pools.Pool
+    class Pool(object):
+        """
+        Thread-safe connection pool replacement for eventlet.pools.Pool.
+
+        This code is very similar to eventlet/eventlet/pools.py, but uses
+        threading.Condition to maintain thread-safety.
+        """
+        def __init__(self, min_size=0, max_size=4, create=None):
+            self.min_size = min_size
+            self.max_size = max_size
+            self.current_size = 0
+            self.free_items = collections.deque()
+            self.available = threading.Condition()
+
+            if create is not None:
+                self.create = create
+
+            for x in range(min_size):
+                self.current_size += 1
+                self.free_items.append(self.create())
+
+        def get(self):
+            with self.available:  # acquire the lock
+                if self.free_items:
+                    return self.free_items.popleft()
+
+                if self.current_size < self.max_size:
+                    self.current_size += 1
+                    try:
+                        created = self.create()
+                    except BaseException:
+                        self.current_size -= 1
+                        raise
+                    return created
+
+                while not self.free_items:
+                    # Wait until notified by put
+                    self.available.wait()
+
+                self.current_size -= 1
+                return self.free_items.popleft()
+
+        def put(self, item):
+            with self.available:  # acquires the lock
+                if self.current_size > self.max_size:
+                    # This should never happen
+                    raise RuntimeError
+
+                self.free_items.append(item)
+
+                # Notify self.available.wait() in get() to re-acquire lock
+                self.available.notify()
+
+        def create(self):
+            raise NotImplementedError()
+
+        # dispersion_populate and dispersion_report require this
+        @contextmanager
+        def item(self):
+            item = self.get()
+            try:
+                yield item
+            finally:
+                self.put(item)
 
 
 # flake8 raises a F401 without this
