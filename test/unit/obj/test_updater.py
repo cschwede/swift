@@ -12,7 +12,7 @@
 # implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from swift.common.concurrency import eventlet, spawn, Timeout
+from swift.common.concurrency import spawn, Timeout, sleep
 import pickle
 from queue import PriorityQueue
 from unittest import mock
@@ -2235,7 +2235,7 @@ class TestObjectUpdater(BaseUnitTestCase):
         def ratelimit_if(value):
             contexts_fed_in.append(value)
             # make each update delay before the iter being called again
-            eventlet.sleep(latencies.pop(0))
+            sleep(latencies.pop(0))
             return False  # returning False overrides normal ratelimiting
 
         orig_rate_limited_iterator = utils.RateLimitedIterator
@@ -2457,7 +2457,7 @@ class TestObjectUpdater(BaseUnitTestCase):
                                   fake_object_update), \
                 mock.patch('swift.obj.updater.RateLimitedIterator',
                            fake_rate_limited_iterator), \
-                mock.patch('swift.common.utils.eventlet.sleep') as mock_sleep:
+                mock.patch('swift.common.concurrency.sleep') as mock_sleep:
             daemon._process_device_in_child(self.sda1, 'sda1')
         self.assertEqual(expected_success, daemon.stats.successes)
         expected_skipped = expected_total - expected_success
@@ -2585,7 +2585,7 @@ class TestObjectUpdater(BaseUnitTestCase):
                                   fake_object_update), \
                 mock.patch('swift.obj.updater.RateLimitedIterator',
                            fake_rate_limited_iterator), \
-                mock.patch('swift.common.utils.eventlet.sleep') as mock_sleep:
+                mock.patch('swift.common.concurrency.sleep') as mock_sleep:
             daemon._process_device_in_child(self.sda1, 'sda1')
         self.assertEqual(expected_success, daemon.stats.successes)
         expected_skipped = expected_total - expected_success
@@ -2732,7 +2732,7 @@ class TestBucketizedUpdateSkippingLimiter(unittest.TestCase):
         # enough capacity for all deferrals
         with mock.patch('swift.obj.updater.time.time',
                         side_effect=[now, now, now, now, now, now]):
-            with mock.patch('swift.common.utils.eventlet.sleep') as mock_sleep:
+            with mock.patch('swift.common.concurrency.sleep') as mock_sleep:
                 it = object_updater.BucketizedUpdateSkippingLimiter(
                     iter(update_ctxs[:3]), self.logger, self.stats, 1, 10,
                     max_deferred_elements=2,
@@ -2751,7 +2751,7 @@ class TestBucketizedUpdateSkippingLimiter(unittest.TestCase):
         # only space for one deferral
         with mock.patch('swift.obj.updater.time.time',
                         side_effect=[now, now, now, now, now]):
-            with mock.patch('swift.common.utils.eventlet.sleep') as mock_sleep:
+            with mock.patch('swift.common.concurrency.sleep') as mock_sleep:
                 it = object_updater.BucketizedUpdateSkippingLimiter(
                     iter(update_ctxs[:3]), self.logger, self.stats, 1, 10,
                     max_deferred_elements=1,
@@ -2769,7 +2769,7 @@ class TestBucketizedUpdateSkippingLimiter(unittest.TestCase):
         # only time for one deferral
         with mock.patch('swift.obj.updater.time.time',
                         side_effect=[now, now, now, now, now + 20, now + 20]):
-            with mock.patch('swift.common.utils.eventlet.sleep') as mock_sleep:
+            with mock.patch('swift.common.concurrency.sleep') as mock_sleep:
                 it = object_updater.BucketizedUpdateSkippingLimiter(
                     iter(update_ctxs[:3]), self.logger, self.stats, 1, 10,
                     max_deferred_elements=2,
@@ -2788,7 +2788,7 @@ class TestBucketizedUpdateSkippingLimiter(unittest.TestCase):
         with mock.patch('swift.obj.updater.time.time',
                         side_effect=[now, now, now, now, now,
                                      now + 20, now + 20]):
-            with mock.patch('swift.common.utils.eventlet.sleep') as mock_sleep:
+            with mock.patch('swift.common.concurrency.sleep') as mock_sleep:
                 it = object_updater.BucketizedUpdateSkippingLimiter(
                     iter(update_ctxs), self.logger, self.stats, 1, 10,
                     max_deferred_elements=2,
@@ -2817,7 +2817,7 @@ class TestBucketizedUpdateSkippingLimiter(unittest.TestCase):
         # deferrals stick in both buckets
         with mock.patch('swift.obj.updater.time.time',
                         side_effect=[next(time_iter) for _ in range(12)]):
-            with mock.patch('swift.common.utils.eventlet.sleep') as mock_sleep:
+            with mock.patch('swift.common.concurrency.sleep') as mock_sleep:
                 it = object_updater.BucketizedUpdateSkippingLimiter(
                     iter(update_ctxs_1 + update_ctxs_2),
                     self.logger, self.stats, 4, 10,
@@ -2842,7 +2842,7 @@ class TestBucketizedUpdateSkippingLimiter(unittest.TestCase):
         # oldest deferral bumped from one bucket due to max_deferrals == 3
         with mock.patch('swift.obj.updater.time.time',
                         side_effect=[next(time_iter) for _ in range(10)]):
-            with mock.patch('swift.common.utils.eventlet.sleep') as mock_sleep:
+            with mock.patch('swift.common.concurrency.sleep') as mock_sleep:
                 it = object_updater.BucketizedUpdateSkippingLimiter(
                     iter(update_ctxs_1 + update_ctxs_2),
                     self.logger, self.stats, 4, 10,
@@ -2866,7 +2866,7 @@ class TestBucketizedUpdateSkippingLimiter(unittest.TestCase):
         # older deferrals bumped from one bucket due to max_deferrals == 2
         with mock.patch('swift.obj.updater.time.time',
                         side_effect=[next(time_iter) for _ in range(10)]):
-            with mock.patch('swift.common.utils.eventlet.sleep') as mock_sleep:
+            with mock.patch('swift.common.concurrency.sleep') as mock_sleep:
                 it = object_updater.BucketizedUpdateSkippingLimiter(
                     iter(update_ctxs_1 + update_ctxs_2),
                     self.logger, self.stats, 4, 10,

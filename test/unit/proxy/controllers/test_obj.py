@@ -8641,7 +8641,7 @@ class TestCooperativeToken(BaseObjectControllerMixin, unittest.TestCase):
             # Preset the cache value, but only available after 4 retries.
             req.environ['swift.cache'].set(cache_key, cached_namespaces.bounds)
 
-            with mock.patch('swift.common.utils.eventlet.sleep'), \
+            with mock.patch('swift.common.concurrency.sleep'), \
                     mocked_http_conn(*status_codes, headers=resp_headers,
                                      body=body) as fake_conn:
                 resp = req.get_response(self.app)
@@ -8781,7 +8781,7 @@ class TestCooperativeToken(BaseObjectControllerMixin, unittest.TestCase):
 
             with mock.patch(
                     'swift.proxy.controllers.obj.time.time') as mock_time, \
-                mock.patch('swift.common.utils.sleep') as mock_sleep, \
+                mock.patch('swift.common.concurrency.sleep') as mock_sleep, \
                 mocked_http_conn(
                     *status_codes, headers=resp_headers, body=body) \
                     as fake_conn:
@@ -9015,7 +9015,7 @@ class TestCooperativeToken(BaseObjectControllerMixin, unittest.TestCase):
         cache_key = 'shard-updating-v2/a/c'
 
         def delayed_fetch_backend(self):
-            eventlet.sleep(0.0005)
+            sleep(0.0005)
             body = json.dumps([
                 dict(shard_range)
                 for shard_range in shard_ranges]).encode('ascii')
@@ -9120,7 +9120,7 @@ class TestCooperativeToken(BaseObjectControllerMixin, unittest.TestCase):
 
         def delayed_fetch_backend(self):
             nonlocal failures_injected
-            eventlet.sleep(0.2)
+            sleep(0.2)
             body = json.dumps([
                 dict(shard_range)
                 for shard_range in shard_ranges]).encode('ascii')

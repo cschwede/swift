@@ -5238,7 +5238,7 @@ class TestObjectController(BaseUnitTestCase):
         req = Request.blank('/sda1/p/a/c/o',
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Range': 'bytes=1-6'})
-        with mock.patch('swift.common.utils.sleep') as mock_sleep:
+        with mock.patch('swift.common.concurrency.sleep') as mock_sleep:
             resp = req.get_response(obj_controller)
             self.assertEqual(resp.status_int, 206)
             self.assertEqual('bytes 1-6/7', resp.headers.get('Content-Range'))
@@ -5254,7 +5254,7 @@ class TestObjectController(BaseUnitTestCase):
 
         req = Request.blank('/sda1/p/a/c/o',
                             environ={'REQUEST_METHOD': 'GET'})
-        with mock.patch('swift.common.utils.sleep') as mock_sleep:
+        with mock.patch('swift.common.concurrency.sleep') as mock_sleep:
             resp = req.get_response(obj_controller)
             self.assertEqual(resp.status_int, 200)
             self.assertEqual(b'7 bytes', resp.body)
@@ -5267,7 +5267,7 @@ class TestObjectController(BaseUnitTestCase):
 
         req = Request.blank('/sda1/p/a/c/o',
                             environ={'REQUEST_METHOD': 'GET'})
-        with mock.patch('swift.common.utils.sleep') as mock_sleep:
+        with mock.patch('swift.common.concurrency.sleep') as mock_sleep:
             resp = req.get_response(obj_controller)
             self.assertEqual(resp.status_int, 200)
             self.assertEqual(b'7 bytes', resp.body)
@@ -5281,7 +5281,7 @@ class TestObjectController(BaseUnitTestCase):
         req = Request.blank('/sda1/p/a/c/o',
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Range': 'bytes=1-6'})
-        with mock.patch('swift.common.utils.sleep') as mock_sleep:
+        with mock.patch('swift.common.concurrency.sleep') as mock_sleep:
             resp = req.get_response(obj_controller)
             self.assertEqual(resp.status_int, 206)
             self.assertEqual('bytes 1-6/7', resp.headers.get('Content-Range'))
@@ -5297,7 +5297,7 @@ class TestObjectController(BaseUnitTestCase):
         req = Request.blank('/sda1/p/a/c/o',
                             environ={'REQUEST_METHOD': 'GET'},
                             headers={'Range': 'bytes=1-6'})
-        with mock.patch('swift.common.utils.sleep') as mock_sleep:
+        with mock.patch('swift.common.concurrency.sleep') as mock_sleep:
             resp = req.get_response(obj_controller)
             self.assertEqual(resp.status_int, 206)
             self.assertEqual('bytes 1-6/7', resp.headers.get('Content-Range'))
@@ -5318,7 +5318,7 @@ class TestObjectController(BaseUnitTestCase):
                             headers={'X-Timestamp': timestamp,
                                      'Content-Type': 'application/x-test'})
         req.body = b'7 bytes'
-        with mock.patch('swift.common.utils.sleep') as mock_sleep:
+        with mock.patch('swift.common.concurrency.sleep') as mock_sleep:
             resp = req.get_response(obj_controller)
             self.assertEqual(resp.status_int, 201)
         self.assertEqual(1, mock_sleep.call_count)
@@ -5335,7 +5335,7 @@ class TestObjectController(BaseUnitTestCase):
                             headers={'X-Timestamp': timestamp,
                                      'Content-Type': 'application/x-test'})
         req.body = b'7 bytes'
-        with mock.patch('swift.common.utils.sleep') as mock_sleep:
+        with mock.patch('swift.common.concurrency.sleep') as mock_sleep:
             resp = req.get_response(obj_controller)
             self.assertEqual(resp.status_int, 201)
         self.assertEqual(2, mock_sleep.call_count)
@@ -5350,7 +5350,7 @@ class TestObjectController(BaseUnitTestCase):
                             headers={'X-Timestamp': timestamp,
                                      'Content-Type': 'application/x-test'})
         req.body = b'7 bytes'
-        with mock.patch('swift.common.utils.sleep') as mock_sleep:
+        with mock.patch('swift.common.concurrency.sleep') as mock_sleep:
             resp = req.get_response(obj_controller)
             self.assertEqual(resp.status_int, 201)
         self.assertEqual(1, mock_sleep.call_count)
@@ -5365,7 +5365,7 @@ class TestObjectController(BaseUnitTestCase):
                             headers={'X-Timestamp': timestamp,
                                      'Content-Type': 'application/x-test'})
         req.body = b'7 bytes'
-        with mock.patch('swift.common.utils.sleep') as mock_sleep:
+        with mock.patch('swift.common.concurrency.sleep') as mock_sleep:
             resp = req.get_response(obj_controller)
             self.assertEqual(resp.status_int, 201)
         self.assertFalse(mock_sleep.called)
@@ -5381,7 +5381,7 @@ class TestObjectController(BaseUnitTestCase):
                             headers={'X-Timestamp': timestamp,
                                      'Content-Type': 'application/x-test'})
         req.body = b'7 bytes'
-        with mock.patch('swift.common.utils.sleep') as mock_sleep:
+        with mock.patch('swift.common.concurrency.sleep') as mock_sleep:
             resp = req.get_response(obj_controller)
             self.assertEqual(resp.status_int, 201)
         self.assertFalse(mock_sleep.called)

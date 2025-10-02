@@ -53,7 +53,7 @@ import eventlet.wsgi
 
 from eventlet import GreenPile, GreenPool
 from eventlet import greenio, greenpool, hubs, patcher, queue, tpool, wsgi
-from eventlet import debug, listen, sleep, spawn, timeout, websocket
+from eventlet import debug, listen, spawn, timeout, websocket
 from eventlet import greenthread
 
 from eventlet.event import Event
@@ -93,6 +93,8 @@ if USE_EVENTLET:
         def check_time(self):
             # Only needed without eventlet
             pass
+
+    from eventlet import sleep
 
 else:
     class Timeout(BaseException):
@@ -143,6 +145,10 @@ else:
         # Only used in tests, but just in case restore timeouts
         def cancel(self):
             self.restore_timeout()
+
+    def sleep(seconds=0):
+        if seconds:
+            time.sleep(seconds)
 
 
 # flake8 raises a F401 without this
