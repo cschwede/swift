@@ -16,7 +16,7 @@
 import unittest
 
 import threading
-from swift.common.concurrency import Pool
+from swift.common.concurrency import Pool, tpool
 
 
 class TestPool(unittest.TestCase):
@@ -91,3 +91,27 @@ class TestPool(unittest.TestCase):
         pool.put(first)  # return item, unblock getter
         t.join(timeout=5)
         self.assertEqual(result, [first])
+
+
+class TestTpool(unittest.TestCase):
+    def test_with_args(self):
+        f = lambda x, y: x * y
+        result = tpool.execute(f, 6, 7)
+        self.assertEqual(result, 42)
+
+    def test_with_kwargs(self):
+        def dummy(a, b=1):
+            return (a, b)
+
+        result = tpool.execute(dummy, 0, b=2)
+        self.assertEqual(result, (0, 2))
+
+    def test_exception(self):
+        class DummyException(Exception):
+            pass
+
+        def fail():
+            raise DummyException('reason')
+
+        with self.assertRaises(DummyException):
+            tpool.execute(fail)

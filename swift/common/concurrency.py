@@ -55,7 +55,7 @@ import eventlet.semaphore
 import eventlet.wsgi
 
 from eventlet import GreenPile, GreenPool
-from eventlet import greenio, greenpool, hubs, patcher, queue, tpool, wsgi
+from eventlet import greenio, greenpool, hubs, patcher, queue, wsgi
 from eventlet import debug, listen, timeout, websocket
 from eventlet import greenthread
 
@@ -83,6 +83,7 @@ ChunkReadError = eventlet.wsgi.ChunkReadError
 
 if USE_EVENTLET:
     from eventlet import Timeout as _Timeout
+    from eventlet import tpool
     from eventlet.pools import Pool
 
     class Timeout(_Timeout):
@@ -216,6 +217,7 @@ else:
     spawn_n = spawn
 
     # Class to replaceme eventlet.pools.Pool
+
     class Pool(object):
         """
         Thread-safe connection pool replacement for eventlet.pools.Pool.
@@ -280,6 +282,27 @@ else:
                 yield item
             finally:
                 self.put(item)
+
+    # Replacement for eventlet.tpool
+    class Executor:
+        """Drop-in replacement for eventlet.tpool running in the current
+        thread.
+
+        All calls to execute will run in the current thread and not in a
+        separate thread pool. Eventlet uses a threadpool to be able to yield
+        to other coros and not block the current one, but without eventlet
+        this is not needed - it is already running in a thread.
+        """
+        # No-op to be compatible with eventlet call
+        def set_num_threads(self, *args, **kwargs):
+            pass
+
+        @staticmethod
+        def execute(func, *args, **kwargs):
+            return func(*args, **kwargs)
+
+    # No need for a threadpool when already running in threads.
+    tpool = Executor()
 
 
 # flake8 raises a F401 without this
