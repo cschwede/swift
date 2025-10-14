@@ -5549,3 +5549,26 @@ def get_ppid(pid):
                 raise RuntimeError('get_ppid can only be used on Linux')
             raise OSError(errno.ESRCH, 'No such process')
         raise
+
+
+def shutdown_safe(sock):
+    """Shuts down the socket. This is a convenience method for code that wants
+    to gracefully handle regular sockets, SSL.Connection sockets from PyOpenSSL
+    and ssl.SSLSocket objects interchangeably. Both types of ssl socket require
+    a shutdown() before close, but they have different arity on their shutdown
+    method.
+
+    Regular sockets don't need a shutdown before close, but it doesn't hurt.
+    """
+    try:
+        try:
+            # socket, ssl.SSLSocket
+            return sock.shutdown(socket.SHUT_RDWR)
+        except TypeError:
+            # SSL.Connection
+            return sock.shutdown()
+    except OSError as e:
+        # we don't care if the socket is already closed;
+        # this will often be the case in an http server context
+        if e.errno not in (errno.ENOTCONN, errno.EBADF, errno.ENOTSOCK):
+            raise
