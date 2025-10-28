@@ -34,7 +34,7 @@ import socket
 
 from swift.common.concurrency import (
     CONTINUE, HTTPConnection, HTTPResponse, HTTPSConnection, _UNKNOWN,
-    ImproperConnectionState, green_http_client
+    ImproperConnectionState, green_http_client, USE_EVENTLET
 )
 from urllib.parse import quote, parse_qsl, urlencode
 
@@ -42,7 +42,8 @@ from urllib.parse import quote, parse_qsl, urlencode
 # Give it some slack, so the app is more likely to get the chance to reject
 # with a 400 instead.
 http.client._MAXHEADERS = constraints.MAX_HEADER_COUNT * 1.6
-green_http_client._MAXHEADERS = constraints.MAX_HEADER_COUNT * 1.6
+if USE_EVENTLET:
+    green_http_client._MAXHEADERS = constraints.MAX_HEADER_COUNT * 1.6
 
 
 class BufferedHTTPResponse(HTTPResponse):

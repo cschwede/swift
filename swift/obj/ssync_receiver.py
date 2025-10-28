@@ -14,7 +14,7 @@
 # limitations under the License.
 
 
-from swift.common.concurrency import eventlet, sleep, Timeout
+from swift.common.concurrency import sleep, Timeout
 import urllib
 
 from swift.common import exceptions
@@ -23,6 +23,7 @@ from swift.common import swob
 from swift.common import utils
 from swift.common import request_helpers
 from swift.common.utils import Timestamp, shutdown_safe
+from swift.common.concurrency import ChunkReadError
 
 
 class SsyncClientDisconnected(Exception):
@@ -139,7 +140,7 @@ class SsyncInputProxy:
                 with exceptions.MessageTimeout(self.timeout, context,
                                                socket=self.socket):
                     line = self.wsgi_input.readline(self.chunk_size)
-            except (eventlet.wsgi.ChunkReadError, IOError) as err:
+            except (ChunkReadError, IOError) as err:
                 raise exceptions.ChunkReadError('%s: %s' % (context, err))
         except (Exception, Timeout) as err:
             self.exception = err
@@ -164,7 +165,7 @@ class SsyncInputProxy:
                 with exceptions.MessageTimeout(self.timeout, context,
                                                socket=self.socket):
                     chunk = self.wsgi_input.read(size)
-            except (eventlet.wsgi.ChunkReadError, IOError) as err:
+            except (ChunkReadError, IOError) as err:
                 raise exceptions.ChunkReadError('%s: %s' % (context, err))
             if not chunk:
                 raise exceptions.ChunkReadError(

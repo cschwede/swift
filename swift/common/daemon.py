@@ -20,7 +20,7 @@ import time
 import signal
 from re import sub
 
-from swift.common.concurrency import eventlet
+from swift.common.concurrency import eventlet, USE_EVENTLET
 
 from swift.common import utils
 
@@ -291,8 +291,9 @@ def run_daemon(klass, conf_file, section_name='', once=False, **kwargs):
         sys.exit(e)
 
     # patch eventlet/logging early
-    utils.monkey_patch()
-    eventlet.hubs.use_hub(utils.get_hub())
+    if USE_EVENTLET:
+        utils.monkey_patch()
+        eventlet.hubs.use_hub(utils.get_hub())
 
     # once on command line (i.e. daemonize=false) will over-ride config
     once = once or not utils.config_true_value(conf.get('daemonize', 'true'))
@@ -315,9 +316,11 @@ def run_daemon(klass, conf_file, section_name='', once=False, **kwargs):
     utils.FALLOCATE_RESERVE, utils.FALLOCATE_IS_PERCENT = \
         utils.config_fallocate_value(conf.get('fallocate_reserve', '1%'))
 
-    # By default, disable eventlet printing stacktraces
-    eventlet_debug = utils.config_true_value(conf.get('eventlet_debug', 'no'))
-    eventlet.debug.hub_exceptions(eventlet_debug)
+    if USE_EVENTLET:
+        # By default, disable eventlet printing stacktraces
+        eventlet_debug = utils.config_true_value(
+            conf.get('eventlet_debug', 'no'))
+        eventlet.debug.hub_exceptions(eventlet_debug)
 
     # Ensure TZ environment variable exists to avoid stat('/etc/localtime') on
     # some platforms. This locks in reported times to UTC.

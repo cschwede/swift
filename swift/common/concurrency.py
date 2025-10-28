@@ -90,6 +90,7 @@ if USE_EVENTLET:
     from eventlet.queue import Empty, LightQueue, Queue
     from eventlet.semaphore import Semaphore
     from eventlet.support.greenlets import GreenletExit
+    from eventlet.wsgi import ChunkReadError
 
     class Timeout(_Timeout):
         def __init__(self, *args, **kwargs):
@@ -145,6 +146,9 @@ else:
     except ImportError:
         class GreenletExit(BaseException):
             pass
+
+    class ChunkReadError(ValueError):
+        pass
 
     class Timeout(BaseException):
         def __init__(self, seconds=None, socket=None, exception=None):

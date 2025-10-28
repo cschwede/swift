@@ -433,8 +433,9 @@ def eventlet_monkey_patch():
     #     monkey-patching thread is required by python-keystoneclient;
     #     monkey-patching select is required by oslo.messaging pika driver
     #         if thread is monkey-patched.
-    eventlet.patcher.monkey_patch(all=False, socket=True, select=True,
-                                  thread=True)
+    if USE_EVENTLET:
+        eventlet.patcher.monkey_patch(all=False, socket=True, select=True,
+                                      thread=True)
 
 
 def monkey_patch():
@@ -2202,7 +2203,7 @@ class GreenAsyncPile(object):
         try:
             self._responses.put(func(*args, **kwargs))
         except Exception:
-            if eventlet.hubs.get_hub().debug_exceptions:
+            if USE_EVENTLET and eventlet.hubs.get_hub().debug_exceptions:
                 traceback.print_exception(*sys.exc_info())
             self._responses.put(DEAD)
         finally:
