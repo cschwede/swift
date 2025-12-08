@@ -16,7 +16,7 @@
 import unittest
 
 import threading
-from swift.common.concurrency import Pool, tpool
+from swift.common.concurrency import Pool, tpool, SwiftPool
 
 
 class TestPool(unittest.TestCase):
@@ -115,3 +115,52 @@ class TestTpool(unittest.TestCase):
 
         with self.assertRaises(DummyException):
             tpool.execute(fail)
+
+
+class TestSwiftPool(unittest.TestCase):
+    def test_waitall(self):
+        results = []
+
+        def append_val(val):
+            results.append(val)
+
+        pool = SwiftPool(size=4)
+        for i in range(5):
+            pool.spawn_n(append_val, i)
+        pool.waitall()
+        self.assertEqual(sorted(results), [0, 1, 2, 3, 4])
+        self.assertEqual(pool.futures, [])
+        pool.shutdown(wait=True)
+
+    def test_free_and_running(self):
+        pool = SwiftPool(size=4)
+        # Before any tasks, free should equal size
+        self.assertEqual(pool.free(), 4)
+        self.assertEqual(pool.running(), 0)
+        pool.shutdown(wait=True)
+
+    def test_imap_returns_results_in_order(self):
+        def double(x):
+            return x * 2
+
+        pool = SwiftPool(size=4)
+        results = list(pool.imap(double, [1, 2, 3, 4, 5]))
+        self.assertEqual(results, [2, 4, 6, 8, 10])
+        pool.shutdown(wait=True)
+
+    def test_starmap_returns_results_in_order(self):
+        def multiply(a, b):
+            return a * b
+
+        pool = SwiftPool(size=4)
+        results = list(pool.starmap(multiply, [(2, 3), (4, 5), (6, 7)]))
+        self.assertEqual(results, [6, 20, 42])
+        pool.shutdown(wait=True)
+
+    def test_runs_in_separate_thread(self):
+        main_thread_id = threading.current_thread().ident
+        pool = SwiftPool(size=2)
+        future = pool.spawn(lambda: threading.current_thread().ident)
+        worker_thread_id = future.result()
+        self.assertNotEqual(main_thread_id, worker_thread_id)
+        pool.shutdown(wait=True)

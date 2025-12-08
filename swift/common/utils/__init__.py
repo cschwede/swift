@@ -48,7 +48,7 @@ import itertools
 import stat
 
 from swift.common.concurrency import (
-    eventlet, GreenPool, sleep, Timeout, Event, socket
+    eventlet, SwiftPool, sleep, Timeout, Event, socket, USE_EVENTLET
 )
 try:
     import importlib.metadata
@@ -2143,8 +2143,8 @@ def ratelimit_sleep(running_time, max_rate, incr_by=1, rate_buffer=5):
     return rate_limit.running_time
 
 
-class ContextPool(GreenPool):
-    """GreenPool subclassed to kill its coros when it gets gc'ed"""
+class ContextPool(SwiftPool):
+    """SwiftPool subclassed to kill its coros when it gets gc'ed"""
 
     def __enter__(self):
         return self
@@ -2153,8 +2153,15 @@ class ContextPool(GreenPool):
         self.close()
 
     def close(self):
-        for coro in list(self.coroutines_running):
-            coro.kill()
+        if USE_EVENTLET:
+            for coro in list(self.coroutines_running):
+                coro.kill()
+        else:
+            # Cancel pending futures but keep the pool alive so it can
+            # be reused for subsequent ranges in multi-range EC responses.
+            for future in self.futures:
+                future.cancel()
+            self.futures = []
 
 
 class GreenAsyncPileWaitallTimeout(Timeout):
@@ -2180,11 +2187,11 @@ class GreenAsyncPile(object):
         """
         :param size_or_pool: thread pool size or a pool to use
         """
-        if isinstance(size_or_pool, GreenPool):
+        if isinstance(size_or_pool, SwiftPool):
             self._pool = size_or_pool
             size = self._pool.size
         else:
-            self._pool = GreenPool(size_or_pool)
+            self._pool = SwiftPool(size_or_pool)
             size = size_or_pool
         self._responses = eventlet.queue.LightQueue(size)
         self._inflight = 0

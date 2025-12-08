@@ -16,7 +16,7 @@
 """
 
 
-from swift.common.concurrency import socket, GreenPool, urllib_request
+from swift.common.concurrency import socket, SwiftPool, urllib_request
 from urllib.parse import urlparse
 
 from swift.common.utils import (

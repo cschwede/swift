@@ -20,6 +20,7 @@ rather than importing directly from eventlet.
 """
 
 import collections
+from concurrent.futures import ThreadPoolExecutor, wait
 import importlib.util
 import os
 import threading
@@ -54,7 +55,7 @@ import eventlet.queue
 import eventlet.semaphore
 import eventlet.wsgi
 
-from eventlet import GreenPile, GreenPool
+from eventlet import GreenPile
 from eventlet import greenio, greenpool, hubs, patcher, queue, wsgi
 from eventlet import debug, listen, timeout, websocket
 from eventlet import greenthread
@@ -84,6 +85,7 @@ ChunkReadError = eventlet.wsgi.ChunkReadError
 if USE_EVENTLET:
     from eventlet import Timeout as _Timeout
     from eventlet import tpool
+    from eventlet import GreenPool as SwiftPool
     from eventlet.pools import Pool
 
     class Timeout(_Timeout):
@@ -304,6 +306,44 @@ else:
     # No need for a threadpool when already running in threads.
     tpool = Executor()
 
+    class SwiftPool(ThreadPoolExecutor):
+        """SwiftPool-compatible pool backed by ThreadPoolExecutor.
+
+        Provides the same API as eventlet.SwiftPool so callers don't need
+        per-method ``if USE_EVENTLET`` branches.
+        """
+
+        def __init__(self, size=1024):
+            super(SwiftPool, self).__init__(max_workers=size)
+            self.size = size
+            self.futures = []
+
+        def spawn(self, func, *args, **kwargs):
+            future = self.submit(func, *args, **kwargs)
+            self.futures.append(future)
+            return future
+
+        def spawn_n(self, func, *args, **kwargs):
+            future = self.submit(func, *args, **kwargs)
+            self.futures.append(future)
+            return future
+
+        def waitall(self):
+            wait(self.futures)
+            self.futures = []
+
+        def running(self):
+            return len([f for f in self.futures if f.running()])
+
+        def free(self):
+            return self.size - self.running()
+
+        def starmap(self, func, iterable):
+            return self.map(lambda args: func(*args), iterable)
+
+        def imap(self, func, *iterables):
+            return self.map(func, *iterables)
+
 
 # flake8 raises a F401 without this
 __all__ = [
@@ -318,7 +358,7 @@ __all__ = [
     'queue',
     'wsgi',
     'GreenPile',
-    'GreenPool',
+    'SwiftPool',
     'Timeout',
     'greenio',
     'greenpool',

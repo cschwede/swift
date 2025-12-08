@@ -21,7 +21,7 @@ from math import sqrt
 from time import time
 import itertools
 
-from swift.common.concurrency import GreenPool, sleep, Timeout
+from swift.common.concurrency import SwiftPool, sleep, Timeout
 
 import swift.common.db
 from swift.account.backend import AccountBroker, DATADIR
@@ -77,7 +77,7 @@ class AccountReaper(Daemon):
         self.concurrency = int(conf.get('concurrency', 25))
         self.container_concurrency = self.object_concurrency = \
             sqrt(self.concurrency)
-        self.container_pool = GreenPool(size=self.container_concurrency)
+        self.container_pool = SwiftPool(size=self.container_concurrency)
         swift.common.db.DB_PREALLOCATION = \
             config_true_value(conf.get('db_preallocation', 'f'))
         self.delay_reaping = int(conf.get('delay_reaping') or 0)
@@ -360,7 +360,7 @@ class AccountReaper(Daemon):
         account_nodes = list(account_nodes)
         part, nodes = self.get_container_ring().get_nodes(account, container)
         node = nodes[-1]
-        pool = GreenPool(size=self.object_concurrency)
+        pool = SwiftPool(size=self.object_concurrency)
         marker = ''
         while True:
             objects = None
