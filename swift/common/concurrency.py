@@ -86,6 +86,7 @@ if USE_EVENTLET:
     from eventlet import Timeout as _Timeout
     from eventlet import tpool
     from eventlet import GreenPool as SwiftPool
+    from eventlet import GreenPile as SwiftPile
     from eventlet.pools import Pool
 
     class Timeout(_Timeout):
@@ -208,8 +209,38 @@ else:
         def dead(self):
             return not self.thread.is_alive()
 
-        def kill(self):
+        def waitall(self):
+            wait(self.futures)
+            self.futures = []
+
+        def running(self):
+            return len([f for f in self.futures if f.running()])
+
+        def free(self):
+            return self.size - self.running()
+
+        def starmap(self, func, iterable):
+            return self.map(lambda args: func(*args), iterable)
+
+        def imap(self, func, *iterables):
+            return self.map(func, *iterables)
+
+    class Executor:
+        """Drop-in replacement for eventlet.tpool running in the current
+        thread.
+
+        All calls to execute will run in the current thread and not in a
+        separate thread pool. Eventlet uses a threadpool to be able to yield
+        to other coros and not block the current one, but without eventlet
+        this is not needed - it is already running in a thread.
+        """
+        # No-op to be compatible with eventlet call
+        def set_num_threads(self, *args, **kwargs):
             pass
+
+        @staticmethod
+        def execute(func, *args, **kwargs):
+            return func(*args, **kwargs)
 
     def spawn(func, *args, **kwargs):
         return ThreadResult(func, args, kwargs)
@@ -285,24 +316,6 @@ else:
             finally:
                 self.put(item)
 
-    # Replacement for eventlet.tpool
-    class Executor:
-        """Drop-in replacement for eventlet.tpool running in the current
-        thread.
-
-        All calls to execute will run in the current thread and not in a
-        separate thread pool. Eventlet uses a threadpool to be able to yield
-        to other coros and not block the current one, but without eventlet
-        this is not needed - it is already running in a thread.
-        """
-        # No-op to be compatible with eventlet call
-        def set_num_threads(self, *args, **kwargs):
-            pass
-
-        @staticmethod
-        def execute(func, *args, **kwargs):
-            return func(*args, **kwargs)
-
     # No need for a threadpool when already running in threads.
     tpool = Executor()
 
@@ -343,6 +356,32 @@ else:
 
         def imap(self, func, *iterables):
             return self.map(func, *iterables)
+
+    class SwiftPile(object):
+        """GreenPile-compatible pile backed by ThreadPoolExecutor.
+
+        Spawns jobs in a thread pool and yields results in the order they
+        were spawned, matching eventlet.GreenPile's ordered result behavior.
+        """
+
+        def __init__(self, size_or_pool=1000):
+            if isinstance(size_or_pool, ThreadPoolExecutor):
+                self._pool = size_or_pool
+            else:
+                self._pool = SwiftPool(size_or_pool)
+            self._futures = collections.deque()
+
+        def spawn(self, func, *args, **kwargs):
+            future = self._pool.submit(func, *args, **kwargs)
+            self._futures.append(future)
+
+        def __iter__(self):
+            return self
+
+        def __next__(self):
+            if not self._futures:
+                raise StopIteration()
+            return self._futures.popleft().result()
 
 
 # flake8 raises a F401 without this

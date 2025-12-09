@@ -16,7 +16,8 @@
 import unittest
 
 import threading
-from swift.common.concurrency import Pool, tpool, SwiftPool
+from swift.common.concurrency import Pool, tpool, SwiftPool, SwiftPile
+from time import sleep
 
 
 class TestPool(unittest.TestCase):
@@ -164,3 +165,26 @@ class TestSwiftPool(unittest.TestCase):
         worker_thread_id = future.result()
         self.assertNotEqual(main_thread_id, worker_thread_id)
         pool.shutdown(wait=True)
+
+
+class TestSwiftPile(unittest.TestCase):
+    def test_results_in_order(self):
+        # Test that a slow func result is still returned in order
+        pile = SwiftPile(4)
+
+        def slow():
+            sleep(0.1)
+            return 0
+        pile.spawn(slow)
+
+        for i in range(1, 5):
+            pile.spawn(lambda x=i: x)
+
+        self.assertEqual(list(pile), [0, 1, 2, 3, 4])
+
+    def test_runs_in_separate_thread(self):
+        main_thread_id = threading.current_thread().ident
+        pile = SwiftPile(2)
+        pile.spawn(lambda: threading.current_thread().ident)
+        worker_thread_id = list(pile)[0]
+        self.assertNotEqual(main_thread_id, worker_thread_id)
