@@ -23,6 +23,7 @@ import collections
 from concurrent.futures import ThreadPoolExecutor, wait
 import importlib.util
 import os
+import select
 import threading
 import time
 from contextlib import contextmanager
@@ -69,7 +70,6 @@ from eventlet.green.http.client import CONTINUE, HTTPConnection, \
     HTTPResponse, HTTPSConnection, ImproperConnectionState, _UNKNOWN
 from eventlet.green.urllib import request as urllib_request
 from eventlet.greenthread import getcurrent, spawn as greenthread_spawn
-from eventlet.hubs import trampoline
 from eventlet.queue import Empty, LightQueue, Queue
 from eventlet.semaphore import Semaphore
 from eventlet.support.greenlets import GreenletExit
@@ -87,6 +87,7 @@ if USE_EVENTLET:
     from eventlet import tpool
     from eventlet import GreenPool as SwiftPool
     from eventlet import GreenPile as SwiftPile
+    from eventlet.hubs import trampoline
     from eventlet.pools import Pool
 
     class Timeout(_Timeout):
@@ -315,7 +316,6 @@ else:
                 yield item
             finally:
                 self.put(item)
-
     # No need for a threadpool when already running in threads.
     tpool = Executor()
 
@@ -382,6 +382,11 @@ else:
             if not self._futures:
                 raise StopIteration()
             return self._futures.popleft().result()
+
+    def trampoline(fd, read=None, write=None, timeout=None, **kwargs):
+        rlist = [fd] if read else []
+        wlist = [fd] if write else []
+        select.select(rlist, wlist, [fd], timeout)
 
 
 # flake8 raises a F401 without this
