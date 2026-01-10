@@ -5469,29 +5469,77 @@ class Watchdog(object):
         self._evt.wait(sleep_duration)
 
 
+class WatchdogNoOp(object):
+    """
+    No-op Watchdog for non-eventlet mode.
+
+    In non-eventlet mode, timeouts are enforced at the socket level
+    by WatchdogTimeout setting socket.settimeout() and by the gunicorn
+    worker setting client socket timeouts.
+    """
+
+    def __init__(self):
+        self._run_gth = None
+        pass
+
+    def start(self, timeout, exc, timeout_at=None):
+        return 0
+
+    def stop(self, key):
+        pass
+
+    def spawn(self):
+        pass
+
+    def kill(self):
+        pass
+
+
 class WatchdogTimeout(object):
     """
     Context manager to schedule a timeout in a Watchdog instance
+
+    In eventlet mode, the Watchdog greenthread enforces timeouts by throwing
+    exceptions into the caller greenthread.
+
+    If running without eventlet and if a socket is provided, a socket-level
+    timeout is set for the duration of the context. If the socket operation
+    times out, the resulting socket.timeout is raised uing the specificed
+    exception class.
     """
 
-    def __init__(self, watchdog, timeout, exc, timeout_at=None):
+    def __init__(self, watchdog, timeout, exc, timeout_at=None, socket=None):
         """
         Schedule a timeout in a Watchdog instance
 
         :param watchdog: Watchdog instance
         :param timeout: duration before the timeout expires
-        :param exc: exception to throw when the timeout expire, must inherit
-                    from eventlet.timeouts.Timeout
+        :param exc: exception class to throw when the timeout expires
         :param timeout_at: allow to force the expiration timestamp
+        :param socket: optional socket to set timeout
         """
         self.watchdog = watchdog
         self.key = watchdog.start(timeout, exc, timeout_at=timeout_at)
+        self.timeout = timeout
+        self.socket = socket
+        self.previous_timeout = None
+        self.exc = exc
 
     def __enter__(self):
-        pass
+        if (not USE_EVENTLET and
+                self.socket is not None and
+                self.timeout is not None):
+            self.previous_timeout = self.socket.gettimeout()
+            self.socket.settimeout(self.timeout)
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, exc_type, value, traceback):
         self.watchdog.stop(self.key)
+        if not USE_EVENTLET:
+            if self.socket is not None and self.previous_timeout is not None:
+                self.socket.settimeout(self.previous_timeout)
+            if exc_type is not None and issubclass(
+                    exc_type, (TimeoutError, socket.timeout)):
+                raise self.exc(self.timeout)
 
 
 class CooperativeIterator(ClosingIterator):

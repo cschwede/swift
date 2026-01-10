@@ -1255,8 +1255,9 @@ class GetterBase(object):
             # multipart/byteranges response raises a ChunkReadTimeout
             # and resets the source_parts_iter
             try:
+                sock = self.req.environ.get('gunicorn.socket')
                 with WatchdogTimeout(self.app.watchdog, self.node_timeout,
-                                     ChunkReadTimeout):
+                                     ChunkReadTimeout, socket=sock):
                     # If we don't have a multipart/byteranges response,
                     # but just a 200 or a single-range 206, then this
                     # performs no IO, and either just returns source or
@@ -1435,8 +1436,9 @@ class GetOrHeadHandler(GetterBase):
         part_file = ByteCountEnforcer(part_file, nbytes)
         while True:
             try:
+                sock = self.req.environ.get('gunicorn.socket')
                 with WatchdogTimeout(self.app.watchdog, self.node_timeout,
-                                     ChunkReadTimeout):
+                                     ChunkReadTimeout, socket=sock):
                     chunk = part_file.read(self.app.object_chunk_size)
                     if nbytes is not None:
                         nbytes -= len(chunk)
@@ -1466,9 +1468,11 @@ class GetOrHeadHandler(GetterBase):
                 if not chunk:
                     break
 
+                sock = self.req.environ.get('gunicorn.socket')
                 with WatchdogTimeout(self.app.watchdog,
                                      self.app.client_timeout,
-                                     ChunkWriteTimeout):
+                                     ChunkWriteTimeout,
+                                     socket=sock):
                     self.bytes_used_from_backend += len(chunk)
                     yield chunk
 
