@@ -60,9 +60,12 @@ class BufferedHTTPResponse(HTTPResponse):
             # No socket means no file-like -- set it to None like in
             # HTTPResponse.close()
             self.fp = None
-        else:
+        elif USE_EVENTLET:
             # sock.fd is a socket.socket, which should have a _real_close
             self._real_socket = sock.fd
+            self.fp = sock.makefile('rb')
+        else:
+            self._real_socket = sock
             self.fp = sock.makefile('rb')
         self.debuglevel = debuglevel
         self.strict = strict
@@ -162,7 +165,10 @@ class BufferedHTTPResponse(HTTPResponse):
         if self._real_socket:
             # Hopefully this is equivalent to py2's _real_socket.close()?
             # TODO: verify that this does everything ^^^^ does for py2
-            self._real_socket._real_close()
+            if USE_EVENTLET:
+                self._real_socket._real_close()
+            else:
+                self._real_socket.close()
         self._real_socket = None
         self.close()
 

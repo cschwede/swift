@@ -9979,7 +9979,10 @@ class TestObjectServer(unittest.TestCase):
         conn.send(b'c\r\n--boundary123\r\n')
 
         # disconnect client
-        conn.sock.fd._real_close()
+        if hasattr(conn.sock, 'fd'):
+            conn.sock.fd._real_close()
+        else:
+            conn.sock.close()
         for i in range(2):
             sleep(0)
         self.assertFalse(self.logger.get_lines_for_level('error'))
@@ -10089,7 +10092,10 @@ class TestObjectServer(unittest.TestCase):
         with self._check_multiphase_put_commit_handling() as context:
             conn = context['conn']
             # just bail straight out
-            conn.sock.fd._real_close()
+            if hasattr(conn.sock, 'fd'):
+                conn.sock.fd._real_close()
+            else:
+                conn.sock.close()
         sleep(0)
 
         put_timestamp = context['put_timestamp']
@@ -10130,7 +10136,10 @@ class TestObjectServer(unittest.TestCase):
             conn.send(to_send)
 
             # and then bail out
-            conn.sock.fd._real_close()
+            if hasattr(conn.sock, 'fd'):
+                conn.sock.fd._real_close()
+            else:
+                conn.sock.close()
         sleep(0)
 
         put_timestamp = context['put_timestamp']
@@ -10306,7 +10315,10 @@ class TestObjectServer(unittest.TestCase):
             conn.send(to_send)
 
             # and then bail out
-            conn.sock.fd._real_close()
+            if hasattr(conn.sock, 'fd'):
+                conn.sock.fd._real_close()
+            else:
+                conn.sock.close()
         sleep(0)
 
         # and make sure it demonstrates the client disconnect
@@ -10501,7 +10513,10 @@ class TestObjectServer(unittest.TestCase):
             conn.send(to_send)
 
             # and then bail out
-            conn.sock.fd._real_close()
+            if hasattr(conn.sock, 'fd'):
+                conn.sock.fd._real_close()
+            else:
+                conn.sock.close()
 
         # the object server needs to recognize the socket is closed
         # or at least timeout, we'll have to wait
