@@ -28,7 +28,7 @@ from test.unit import temptree, with_tempdir, TestableMemcacheRing, \
 
 import contextlib
 import errno
-from swift.common.concurrency import eventlet, sleep, SwiftPool
+from swift.common.concurrency import eventlet, sleep, SwiftPool, USE_EVENTLET
 import grp
 import logging
 import os
@@ -71,7 +71,8 @@ from swift.common.storage_policy import POLICIES, reload_storage_policies
 from swift.common.swob import Response
 from test.unit import requires_o_tmpfile_support_in_tmp
 
-threading = eventlet.patcher.original('threading')
+if USE_EVENTLET:
+    threading = eventlet.patcher.original('threading')
 
 
 class MockOs(object):
@@ -154,6 +155,7 @@ class TestUtils(unittest.TestCase):
             self.md5_digest = '0d6dc3c588ae71a04ce9a6beebbbba06'
             self.fips_enabled = True
 
+    @unittest.skipUnless(USE_EVENTLET, 'Only used with eventlet')
     def test_monkey_patch(self):
         def take_and_release(lock):
             try:
@@ -3940,6 +3942,7 @@ class TestFileLikeIter(unittest.TestCase):
         iter_file.close()
         self.assertTrue(iter_file.closed)
 
+    @unittest.skipUnless(USE_EVENTLET, 'Only used with eventlet')
     def test_get_hub(self):
         # This test mock the eventlet.green.select module without poll
         # as in eventlet > 0.20

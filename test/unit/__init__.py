@@ -28,7 +28,7 @@ from numbers import Number
 from tempfile import NamedTemporaryFile
 import time
 from swift.common.concurrency import (
-    greenpool, debug as eventlet_debug, socket, sleep
+    greenpool, debug as eventlet_debug, socket, sleep, USE_EVENTLET
 )
 from tempfile import mkdtemp, mkstemp, gettempdir
 from shutil import rmtree
@@ -709,12 +709,15 @@ if utils.config_true_value(
 
 @contextmanager
 def quiet_eventlet_exceptions():
-    orig_state = greenpool.DEBUG
-    eventlet_debug.hub_exceptions(False)
-    try:
+    if USE_EVENTLET:
+        orig_state = greenpool.DEBUG
+        eventlet_debug.hub_exceptions(False)
+        try:
+            yield
+        finally:
+            eventlet_debug.hub_exceptions(orig_state)
+    else:
         yield
-    finally:
-        eventlet_debug.hub_exceptions(orig_state)
 
 
 @contextmanager
