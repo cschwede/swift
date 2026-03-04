@@ -18,12 +18,13 @@ from datetime import datetime
 import io
 import locale
 import random
+import threading
 import urllib.parse
 import time
 import unittest
 import uuid
 from copy import deepcopy
-from swift.common.concurrency import sleep
+from swift.common.concurrency import sleep, USE_EVENTLET
 from swift.common.http import is_success, is_client_error
 from swift.common.swob import normalize_etag
 from swift.common.utils import md5
@@ -2280,12 +2281,31 @@ class TestFile(Base):
         tsecs = 3
 
         def timeout(seconds, method, *args, **kwargs):
-            try:
-                with Timeout(seconds):
-                    method(*args, **kwargs)
-            except Timeout:
-                return True
+            if USE_EVENTLET:
+                try:
+                    with Timeout(seconds):
+                        method(*args, **kwargs)
+                except Timeout:
+                    return True
+                else:
+                    return False
             else:
+                result = []
+                exception = []
+
+                def target():
+                    try:
+                        result.append(method(*args, **kwargs))
+                    except Exception as e:
+                        exception.append(e)
+
+                t = threading.Thread(target=target, daemon=True)
+                t.start()
+                t.join(timeout=seconds)
+                if t.is_alive():
+                    return True
+                if exception:
+                    raise exception[0]
                 return False
 
         # This loop will result in fallocate calls for 4x the limit
