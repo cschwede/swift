@@ -17,6 +17,7 @@ import os
 import re
 import string
 import time
+from io import BytesIO
 from urllib.parse import unquote
 
 try:
@@ -144,6 +145,36 @@ def patch_gunicorn():
         orig_set_body_reader(self)
 
     gunicorn.http.message.Message.set_body_reader = swift_set_body_reader
+
+    # This is a copy from gunicorn.http.body.Body.read and only changes the
+    # self.reader.read(1024) call to use the actual requested size. This avoids
+    # useless copying of data and speeds up chunked transfers significantly.
+    # Remove when https://github.com/benoitc/gunicorn/issues/2596 is closed
+    def swift_read(self, size=None):
+        size = self.getsize(size)
+        if size == 0:
+            return b""
+
+        if size < self.buf.tell():
+            data = self.buf.getvalue()
+            ret, rest = data[:size], data[size:]
+            self.buf = BytesIO()
+            self.buf.write(rest)
+            return ret
+
+        while size > self.buf.tell():
+            data = self.reader.read(size)  # changed to size from 1024
+            if not data:
+                break
+            self.buf.write(data)
+
+        data = self.buf.getvalue()
+        ret, rest = data[:size], data[size:]
+        self.buf = BytesIO()
+        self.buf.write(rest)
+        return ret
+
+    gunicorn.http.body.Body.read = swift_read
 
 
 class SwiftGunicornApp(gunicorn.app.base.BaseApplication):
