@@ -20,6 +20,7 @@ import errno
 from os.path import isdir, isfile, join, dirname
 import random
 import shutil
+import threading
 import time
 import itertools
 import pickle  # nosec: B403
@@ -816,7 +817,7 @@ class ObjectReplicator(Daemon):
         Loop that runs in the background during replication.  It periodically
         logs progress.
         """
-        while True:
+        while not self.stop.is_set():
             sleep(self.stats_interval)
             self.stats_line()
 
@@ -966,6 +967,7 @@ class ObjectReplicator(Daemon):
         self.all_devs_info = set()
         self.handoffs_remaining = 0
 
+        self.stop = threading.Event()
         stats = spawn(self.heartbeat)
         sleep()  # Give spawns a cycle
 
@@ -993,6 +995,9 @@ class ObjectReplicator(Daemon):
                 if self.handoffs_first and not job['delete']:
                     # in handoffs first mode, we won't process primary
                     # partitions until rebalance was successful!
+                    # Wait for pending revert jobs to finish so
+                    # handoffs_remaining is up to date.
+                    self.run_pool.waitall()
                     if self.handoffs_remaining:
                         self.logger.warning(
                             "Handoffs first mode still has handoffs "
@@ -1033,6 +1038,7 @@ class ObjectReplicator(Daemon):
             self.logger.exception(
                 "Exception in top-level replication loop: %s", err)
         finally:
+            self.stop.set()
             stats.kill()
             self.stats_line()
 

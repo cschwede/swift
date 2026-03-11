@@ -19,6 +19,7 @@ from optparse import OptionParser
 import os
 from os.path import join
 import random
+import threading
 import time
 from collections import defaultdict
 import pickle  # nosec: B403
@@ -812,7 +813,7 @@ class ObjectReconstructor(Daemon):
         Loop that runs in the background during reconstruction.  It
         periodically logs progress.
         """
-        while True:
+        while not self.stop.is_set():
             sleep(self.stats_interval)
             self.stats_line()
 
@@ -822,7 +823,7 @@ class ObjectReconstructor(Daemon):
         This is an attempt to make sure the reconstructor finishes its
         reconstruction pass in some eventuality.
         """
-        while True:
+        while not self.stop.is_set():
             sleep(self.lockup_timeout)
             if self.reconstruction_count == self.last_reconstruction_count:
                 self.logger.error("Lockup detected.. killing live coros.")
@@ -1443,6 +1444,7 @@ class ObjectReconstructor(Daemon):
         self._reset_stats()
         self.partition_times = []
 
+        self.stop = threading.Event()
         stats = spawn(self.heartbeat)
         lockup_detector = spawn(self.detect_lockups)
         changed_rings = set()
@@ -1482,6 +1484,7 @@ class ObjectReconstructor(Daemon):
                                   "reconstruction loop")
             self.kill_coros()
         finally:
+            self.stop.set()
             stats.kill()
             lockup_detector.kill()
             self.stats_line()
