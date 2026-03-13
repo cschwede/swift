@@ -823,9 +823,9 @@ class FakeStatus(object):
             self.__class__.__name__, self.status,
             self.expect_status, self.response_sleep)
 
-    def get_response_status(self):
+    def get_response_status(self, conn=None):
         if self.response_sleep is not None:
-            sleep(self.response_sleep)
+            sleep_or_timeout(self.response_sleep, getattr(conn, 'sock', None))
         if self.expect_status and self.explicit_expect_list:
             raise Exception('Test did not consume all fake '
                             'expect status: %r' % (self.expect_status,))
@@ -858,9 +858,10 @@ class SlowBody(object):
     def __init__(self, body, slowness):
         self.body = body
         self.slowness = slowness
+        self.sock = None
 
     def slowdown(self):
-        sleep(self.slowness)
+        sleep_or_timeout(self.slowness, self.sock)
 
     def __getitem__(self, s):
         return SlowBody(self.body[s], self.slowness)
@@ -876,12 +877,24 @@ class SlowBody(object):
 class FakeSocket(object):
     def __init__(self):
         self._timeout = None
+        self.close = mocklib.MagicMock()
 
     def settimeout(self, t):
         self._timeout = t
 
     def gettimeout(self):
         return self._timeout
+
+
+def sleep_or_timeout(duration, sock):
+    """Sleeps but raises socket.timeout if socket has a shorter timeout set
+    (simulating socket.settimeout behaviour).
+    """
+    if sock is not None:
+        timeout = sock.gettimeout()
+        if timeout is not None and duration > timeout:
+            raise socket.timeout('timed out')
+    sleep(duration)
 
 
 def fake_http_connect(*code_iter, **kwargs):
@@ -942,7 +955,7 @@ def fake_http_connect(*code_iter, **kwargs):
                 raise Exception('test')
             if kwargs.get('raise_timeout_exc'):
                 raise utils.Timeout()
-            self.status = self._status.get_response_status()
+            self.status = self._status.get_response_status(conn=self)
             return self
 
         def getexpect(self):
@@ -1009,13 +1022,16 @@ def fake_http_connect(*code_iter, **kwargs):
                 if self.sent < self.SLOW_READS:
                     slowly_read_byte = self.body[self.sent:self.sent + 1]
                     self.sent += 1
-                    sleep(value)
+                    sleep_or_timeout(value, self.sock)
                     return slowly_read_byte
             if amt is None:
                 rv = self.body[self.sent:]
             else:
                 rv = self.body[self.sent:self.sent + amt]
             self.sent += len(rv)
+            # Add the socket so sleep_or_timeout can use it
+            if isinstance(rv, SlowBody) and rv.slowness:
+                rv.sock = self.sock
             return rv
 
         def send(self, data=None):
@@ -1269,7 +1285,8 @@ class StubResponse(object):
         except StopIteration:
             wait = None
         if wait is not None:
-            sleep(wait)
+            sock = getattr(getattr(self, 'swift_conn', None), 'sock', None)
+            sleep_or_timeout(wait, sock)
 
     def nuke_from_orbit(self):
         if hasattr(self, 'swift_conn'):
