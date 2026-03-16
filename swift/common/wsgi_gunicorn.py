@@ -176,6 +176,32 @@ def patch_gunicorn():
 
     gunicorn.http.body.Body.read = swift_read
 
+    # Copy of gunicorn.http.body.ChunkedReader.read, but breaking the while
+    # loop after the first read to allow sending responses.
+    def swift_chunked_reader_read(self, size):
+        if not isinstance(size, int):
+            raise TypeError("size must be an integer type")
+        if size < 0:
+            raise ValueError("Size must be positive.")
+        if size == 0:
+            return b""
+
+        if self.parser:
+            while self.buf.tell() < size:
+                try:
+                    self.buf.write(next(self.parser))
+                except StopIteration:
+                    self.parser = None
+                break  # Changed from gunicorn.http.body.ChunkedReader.read
+
+        data = self.buf.getvalue()
+        ret, rest = data[:size], data[size:]
+        self.buf = BytesIO()
+        self.buf.write(rest)
+        return ret
+
+    gunicorn.http.body.ChunkedReader.read = swift_chunked_reader_read
+
 
 class SwiftGunicornApp(gunicorn.app.base.BaseApplication):
     def __init__(self, wsgi_app, cfg):
